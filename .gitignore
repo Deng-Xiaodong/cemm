@@ -2,3 +2,5 @@
 databases*/
 # 忽略二进制文件
 bin/
+# 忽略idea配置
+.idea/

@@ -1,0 +1,64 @@
+syntax = "proto3";
+option go_package = "./cemm";
+import "google/protobuf/empty.proto";
+package CEMM;
+
+service CEMM {
+
+//  rpc setup (SetupRequest) returns ( ExecuteStatus ) {}
+
+  rpc get (GetRequest) returns ( stream GetReply) {}
+  rpc add (AddRequest) returns ( google.protobuf.Empty ) {}
+  rpc getOrIncRound (RoundRequest) returns (RoundReply) {}
+  rpc initTagSets(InitTagSetsRequest) returns(google.protobuf.Empty) {}
+  rpc initEDB(stream InitEDBRequest) returns(google.protobuf.Empty) {}
+}
+
+message AddToken
+{
+  bytes addr =1;
+  bytes node =2;
+}
+
+message InitTagSetsRequest
+{
+  repeated  bytes tags =1; //关键字空间
+}
+message InitEDBRequest
+{
+  AddToken token =1; //EDB
+}
+
+message GetRequest
+{
+  int32 round =1;
+  bytes tag =2;
+  bytes addr = 3;
+  repeated AddToken dummyTokens =4;
+}
+
+message GetReply
+{
+  bytes node =1;
+}
+
+
+message AddRequest
+{
+  int32 round =1;
+  bytes tag =2;
+  repeated AddToken tokens =3;
+
+}
+
+message RoundRequest
+{
+  bool op =1;
+  bytes tag =2;
+}
+
+message RoundReply
+{
+  int32 round =1;
+}
+

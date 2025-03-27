@@ -19,7 +19,7 @@ import (
 func main() {
 
 	// 1. 打开数据库
-	opts := badger.DefaultOptions("databases1") // 数据存储在当前目录的 databases 文件夹中
+	opts := badger.DefaultOptions("databases") // 数据存储在当前目录的 databases 文件夹中
 	db, errDb := badger.Open(opts)
 	if errDb != nil {
 		log.Fatal("Failed to open database: ", errDb)
@@ -35,8 +35,8 @@ func main() {
 	}
 	s := grpc.NewServer(
 		grpc.KeepaliveParams(keepAliveArgs),
-		grpc.MaxSendMsgSize(1024*1024*4),
-		grpc.MaxRecvMsgSize(1024*1024*4),
+		grpc.MaxSendMsgSize(1024*1024*1024),
+		grpc.MaxRecvMsgSize(1024*1024*1024),
 	)
 	cemm.RegisterCEMMServer(s, server.NewEMMServer(db))
 

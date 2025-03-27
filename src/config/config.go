@@ -1,7 +1,5 @@
 package config
 
-import "math"
-
 type Config struct {
 	ClientCnt int `json:"client_cnt"`
 	Volume    int `json:"volume"`
@@ -10,8 +8,10 @@ type Config struct {
 
 var defaultConfig = Config{
 	ClientCnt: 4,
-	Volume:    1000,
-	Limit:     math.MaxInt64,
+	//Volume:    1 << 10,
+	//Limit:     1 << 24,
+	Volume: 1_000,
+	Limit:  1_000_000_000,
 }
 
 func GetDefaultConfig() *Config {

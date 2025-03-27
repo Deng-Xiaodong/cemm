@@ -23,8 +23,7 @@ const (
 	CEMM_Get_FullMethodName           = "/CEMM.CEMM/get"
 	CEMM_Add_FullMethodName           = "/CEMM.CEMM/add"
 	CEMM_GetOrIncRound_FullMethodName = "/CEMM.CEMM/getOrIncRound"
-	CEMM_InitTagSets_FullMethodName   = "/CEMM.CEMM/initTagSets"
-	CEMM_InitEDB_FullMethodName       = "/CEMM.CEMM/initEDB"
+	CEMM_Init_FullMethodName          = "/CEMM.CEMM/init"
 )
 
 // CEMMClient is the client API for CEMM service.
@@ -34,8 +33,7 @@ type CEMMClient interface {
 	Get(ctx context.Context, in *GetRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GetReply], error)
 	Add(ctx context.Context, in *AddRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	GetOrIncRound(ctx context.Context, in *RoundRequest, opts ...grpc.CallOption) (*RoundReply, error)
-	InitTagSets(ctx context.Context, in *InitTagSetsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	InitEDB(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[InitEDBRequest, emptypb.Empty], error)
+	Init(ctx context.Context, in *InitRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type cEMMClient struct {
@@ -85,28 +83,15 @@ func (c *cEMMClient) GetOrIncRound(ctx context.Context, in *RoundRequest, opts .
 	return out, nil
 }
 
-func (c *cEMMClient) InitTagSets(ctx context.Context, in *InitTagSetsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *cEMMClient) Init(ctx context.Context, in *InitRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, CEMM_InitTagSets_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, CEMM_Init_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
-
-func (c *cEMMClient) InitEDB(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[InitEDBRequest, emptypb.Empty], error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &CEMM_ServiceDesc.Streams[1], CEMM_InitEDB_FullMethodName, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &grpc.GenericClientStream[InitEDBRequest, emptypb.Empty]{ClientStream: stream}
-	return x, nil
-}
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type CEMM_InitEDBClient = grpc.ClientStreamingClient[InitEDBRequest, emptypb.Empty]
 
 // CEMMServer is the server API for CEMM service.
 // All implementations must embed UnimplementedCEMMServer
@@ -115,8 +100,7 @@ type CEMMServer interface {
 	Get(*GetRequest, grpc.ServerStreamingServer[GetReply]) error
 	Add(context.Context, *AddRequest) (*emptypb.Empty, error)
 	GetOrIncRound(context.Context, *RoundRequest) (*RoundReply, error)
-	InitTagSets(context.Context, *InitTagSetsRequest) (*emptypb.Empty, error)
-	InitEDB(grpc.ClientStreamingServer[InitEDBRequest, emptypb.Empty]) error
+	Init(context.Context, *InitRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedCEMMServer()
 }
 
@@ -136,11 +120,8 @@ func (UnimplementedCEMMServer) Add(context.Context, *AddRequest) (*emptypb.Empty
 func (UnimplementedCEMMServer) GetOrIncRound(context.Context, *RoundRequest) (*RoundReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetOrIncRound not implemented")
 }
-func (UnimplementedCEMMServer) InitTagSets(context.Context, *InitTagSetsRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method InitTagSets not implemented")
-}
-func (UnimplementedCEMMServer) InitEDB(grpc.ClientStreamingServer[InitEDBRequest, emptypb.Empty]) error {
-	return status.Errorf(codes.Unimplemented, "method InitEDB not implemented")
+func (UnimplementedCEMMServer) Init(context.Context, *InitRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Init not implemented")
 }
 func (UnimplementedCEMMServer) mustEmbedUnimplementedCEMMServer() {}
 func (UnimplementedCEMMServer) testEmbeddedByValue()              {}
@@ -210,30 +191,23 @@ func _CEMM_GetOrIncRound_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
-func _CEMM_InitTagSets_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(InitTagSetsRequest)
+func _CEMM_Init_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InitRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(CEMMServer).InitTagSets(ctx, in)
+		return srv.(CEMMServer).Init(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: CEMM_InitTagSets_FullMethodName,
+		FullMethod: CEMM_Init_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(CEMMServer).InitTagSets(ctx, req.(*InitTagSetsRequest))
+		return srv.(CEMMServer).Init(ctx, req.(*InitRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
-
-func _CEMM_InitEDB_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(CEMMServer).InitEDB(&grpc.GenericServerStream[InitEDBRequest, emptypb.Empty]{ServerStream: stream})
-}
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type CEMM_InitEDBServer = grpc.ClientStreamingServer[InitEDBRequest, emptypb.Empty]
 
 // CEMM_ServiceDesc is the grpc.ServiceDesc for CEMM service.
 // It's only intended for direct use with grpc.RegisterService,
@@ -251,8 +225,8 @@ var CEMM_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _CEMM_GetOrIncRound_Handler,
 		},
 		{
-			MethodName: "initTagSets",
-			Handler:    _CEMM_InitTagSets_Handler,
+			MethodName: "init",
+			Handler:    _CEMM_Init_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
@@ -260,11 +234,6 @@ var CEMM_ServiceDesc = grpc.ServiceDesc{
 			StreamName:    "get",
 			Handler:       _CEMM_Get_Handler,
 			ServerStreams: true,
-		},
-		{
-			StreamName:    "initEDB",
-			Handler:       _CEMM_InitEDB_Handler,
-			ClientStreams: true,
 		},
 	},
 	Metadata: "CEMM.proto",

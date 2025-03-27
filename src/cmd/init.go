@@ -4,13 +4,10 @@ import (
 	"DRW/src/client"
 	"DRW/src/config"
 	"DRW/src/rpc/cemm"
-	"bufio"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 	"log"
-	"os"
-	"strings"
 	"time"
 )
 
@@ -31,22 +28,21 @@ func main() {
 	cf := config.GetDefaultConfig()
 	emmClient := client.NewEMMClient(0, cf, cemm.NewCEMMClient(conn))
 	//数据集
-	var file *os.File
-	if file, err = os.Open("data/multi_map.txt"); err != nil {
-		log.Fatal(err)
-	}
-	defer file.Close()
-	rd := bufio.NewScanner(file)
-	var length int
-	var data [][]string
-	for rd.Scan() {
-		lineSplit := strings.Split(rd.Text(), " ")
-		if len(lineSplit) >= 2 {
-			data = append(data, lineSplit)
-			length += len(lineSplit) - 1
-		}
-	}
-	err = emmClient.Init(data, length)
+	//var file *os.File
+	//if file, err = os.Open("data/multi_map.txt"); err != nil {
+	//	log.Fatal(err)
+	//}
+	//defer file.Close()
+	//rd := bufio.NewScanner(file)
+	//var data [][]string
+	//for rd.Scan() {
+	//	lineSplit := strings.Split(rd.Text(), " ")
+	//	if len(lineSplit) >= 2 {
+	//		data = append(data, lineSplit)
+	//	}
+	//}
+	keySet := []string{"key1", "key2", "key3"}
+	err = emmClient.Init(keySet)
 	if err != nil {
 		log.Fatal(err)
 	}

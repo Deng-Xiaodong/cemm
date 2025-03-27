@@ -3,77 +3,25 @@ package client
 import (
 	"DRW/src/config"
 	"DRW/src/rpc/cemm"
-	"bufio"
-	"fmt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/keepalive"
 	"log"
-	"os"
 	"strconv"
-	"strings"
 	"sync"
 	"testing"
-	"time"
 )
-
-var emmClient *EMMClient
-
-func init() {
-	cf := config.GetDefaultConfig()
-	keepAliveArgs := keepalive.ClientParameters{
-		Time: 10 * time.Second, // 至少10S，如果10S内没有ping或者数据发送/接收，则触发连接回收
-		// 每次ping进行等待的最长时间，keepalive维持一个倒计时器，当触发连接回收并timeout后，连接断开
-		Timeout: 20 * time.Second,
-	}
-	conn, err := grpc.NewClient("127.0.0.1:19090",
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithKeepaliveParams(keepAliveArgs))
-	if err != nil {
-		log.Fatal(err)
-	}
-	emmClient = NewEMMClient(0, cf, cemm.NewCEMMClient(conn))
-}
-
-func TestEMMClient_Get(t *testing.T) {
-	var err error
-	_, _, err = emmClient.Get("key1")
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-func TestEMMClient_Init(t *testing.T) {
-
-	//数据集
-	var file *os.File
-	var err error
-	if file, err = os.Open("multi_map.txt"); err != nil {
-		log.Fatal(err)
-	}
-	defer file.Close()
-	rd := bufio.NewScanner(file)
-	var length int
-	var data [][]string
-	for rd.Scan() {
-		lineSplit := strings.Split(rd.Text(), " ")
-		if len(lineSplit) >= 2 {
-			data = append(data, lineSplit)
-			length += len(lineSplit) - 1
-		}
-	}
-	err = emmClient.Init(data, length)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
 
 func TestConOp(t *testing.T) {
 	cf := config.GetDefaultConfig()
+	var wg sync.WaitGroup
 	for i := 1; i <= cf.ClientCnt; i++ {
-		idx := i
-		go conOp(idx, cf)
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			conOp(idx, cf)
+		}(i)
 	}
+	wg.Wait()
 }
 
 func conOp(c int, cf *config.Config) {
@@ -83,29 +31,57 @@ func conOp(c int, cf *config.Config) {
 	}
 	cli := NewEMMClient(c, cf, cemm.NewCEMMClient(conn))
 
-	//模拟并发get
-	var wg sync.WaitGroup
-	for i := 1; i <= 10; i++ {
-		wg.Add(1)
-		go func(idx int) {
-			defer wg.Done()
-			res, round, err := cli.Get("key" + strconv.Itoa(idx))
+	if c == 1 {
+		for i := 1; i <= 1000; i++ {
+			err := cli.Add("key1", "value1_"+strconv.Itoa(i+2000))
 			if err != nil {
 				log.Println(err)
 				return
 			}
-			log.Printf("round %d got key%d :%v\n", round, idx, res)
-			time.Sleep(50 * time.Millisecond)
-		}(i)
-	}
-	for i := 1; i <= 10; i++ {
-		for j := 100; j <= 110; j++ {
-			err := cli.Add("key"+strconv.Itoa(i), fmt.Sprintf("value%d_%d", i, j*c))
+			//time.Sleep(10 * time.Millisecond)
+		}
+
+	} else if c == 2 {
+		for i := 1; i <= 1000; i++ {
+			err := cli.Add("key1", "value1_"+strconv.Itoa(i+3000))
 			if err != nil {
 				log.Println(err)
 				return
 			}
+			//time.Sleep(10 * time.Millisecond)
+		}
+
+	} else {
+		for i := 1; i <= 100; i++ {
+			//delay := 10 + rand.Intn(20)
+			//time.Sleep(time.Duration(delay) * time.Millisecond)
+			res, _ := cli.Get("key1")
+			//sort.Slice(res, func(i, j int) bool {
+			//	a := strings.Split(res[i], "_")[1]
+			//	b := strings.Split(res[j], "_")[1]
+			//	return compareStringIntsn(a, b)
+			//})
+			log.Printf("cli%d search key1 got :%v\n", c, res)
 		}
 	}
-	wg.Wait()
+
+}
+
+func compareStringIntsn(a, b string) bool {
+	// 1. 比较长度
+	if len(a) < len(b) {
+		return false
+	} else if len(a) > len(b) {
+		return true
+	}
+
+	// 2. 长度相同，逐字符比较
+	for i := 0; i < len(a); i++ {
+		if a[i] < b[i] {
+			return false
+		} else if a[i] > b[i] {
+			return true
+		}
+	}
+	return true // 完全相等
 }

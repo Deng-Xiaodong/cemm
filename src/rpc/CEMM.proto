@@ -10,8 +10,10 @@ service CEMM {
   rpc get (GetRequest) returns ( stream GetReply) {}
   rpc add (AddRequest) returns ( google.protobuf.Empty ) {}
   rpc getOrIncRound (RoundRequest) returns (RoundReply) {}
-  rpc initTagSets(InitTagSetsRequest) returns(google.protobuf.Empty) {}
-  rpc initEDB(stream InitEDBRequest) returns(google.protobuf.Empty) {}
+  rpc init(InitRequest) returns (google.protobuf.Empty) {}
+//  rpc initTagSets(InitTagSetsRequest) returns(google.protobuf.Empty) {}
+//  rpc initEDB(stream InitEDBRequest) returns(google.protobuf.Empty) {}
+
 }
 
 message AddToken
@@ -20,21 +22,24 @@ message AddToken
   bytes node =2;
 }
 
-message InitTagSetsRequest
+//message InitTagSetsRequest
+//{
+//  repeated  bytes tags =1; //关键字空间
+//}
+//message InitEDBRequest
+//{
+//  AddToken token =1; //EDB
+//}
+message InitRequest
 {
   repeated  bytes tags =1; //关键字空间
-}
-message InitEDBRequest
-{
-  AddToken token =1; //EDB
+  repeated AddToken dummys =2;
 }
 
 message GetRequest
 {
-  int32 round =1;
-  bytes tag =2;
-  bytes addr = 3;
-  repeated AddToken dummyTokens =4;
+  bytes tag = 1;
+  bytes addr =2;
 }
 
 message GetReply
@@ -45,10 +50,7 @@ message GetReply
 
 message AddRequest
 {
-  int32 round =1;
-  bytes tag =2;
-  repeated AddToken tokens =3;
-
+  repeated AddToken tokens =1;
 }
 
 message RoundRequest

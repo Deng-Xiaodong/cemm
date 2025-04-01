@@ -3,7 +3,7 @@ package client
 import (
 	"DRW/src/config"
 	"DRW/src/rpc/cemm"
-	"DRW/src/util"
+	"DRW/src/utlils"
 	"context"
 	"errors"
 	"fmt"
@@ -56,14 +56,14 @@ func (c *EMMClient) getRoundEnd(round int) int {
 
 func (c *EMMClient) genAddr(stKey []byte, i int) []byte {
 	st := fmt.Sprintf("%x%d", stKey, i)
-	return util.H1(string(util.H2(st)))
+	return utlils.H1(string(utlils.H2(st)))
 }
 func (c *EMMClient) genKeywordMask(keyword string) []byte {
-	return util.H1(keyword)
+	return utlils.H1(keyword)
 }
 func (c *EMMClient) genAddToken(keyword, value string, round int, mask []byte) []*cemm.AddToken {
 
-	cipherValue, err := util.AESEncryptCBC(mask[:16], []byte(value))
+	cipherValue, err := utlils.AESEncryptCBC(mask[:16], []byte(value))
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -85,19 +85,21 @@ func (c *EMMClient) genAddToken(keyword, value string, round int, mask []byte) [
 	endAddr := c.genAddr(mask[:8], c.getClientRoundEnd(round))
 
 	//生成字典键值对
-	node := append(util.Xor(oldAddr, newAddr), cipherValue...) //32+
-	endNode := append(util.Xor(endAddr, newAddr), c.genDummy(mask[:16])...)
+	node := append(utlils.Xor(oldAddr, newAddr), cipherValue...) //32+
+	endNode := append(utlils.Xor(endAddr, newAddr), c.genDummy(mask[:16])...)
 
 	//todo 满了，增加轮数
 
 	return []*cemm.AddToken{{Addr: newAddr, Node: node}, {Addr: endAddr, Node: endNode}}
 
 }
+
 func (c *EMMClient) genGetToken(mask []byte, round int) []byte {
 	return c.genAddr(mask[:8], c.getRoundEnd(round))
 }
+
 func (c *EMMClient) genDummy(aesKey []byte) []byte {
-	dummy, err := util.AESEncryptCBC(aesKey, []byte("dummy"))
+	dummy, err := utlils.AESEncryptCBC(aesKey, []byte("dummy"))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -110,7 +112,7 @@ func (c *EMMClient) genNextRoundDummyTokens(stKey, dummy []byte, round int) (tok
 	var node []byte
 	for _, st := range sts {
 		rightAddr = c.genAddr(stKey, st)
-		node = append(util.Xor(leftAddr, rightAddr), dummy...)
+		node = append(utlils.Xor(leftAddr, rightAddr), dummy...)
 		tokens = append(tokens, &cemm.AddToken{Addr: slices.Clone(rightAddr), Node: slices.Clone(node)})
 		leftAddr = rightAddr
 	}
@@ -165,7 +167,7 @@ func (c *EMMClient) Get(keyword string) ([]string, error) {
 				return nil, errRecv
 			}
 			var plaintext []byte
-			plaintext, err = util.AESDecryptCBC(mask[:16], recv.Node)
+			plaintext, err = utlils.AESDecryptCBC(mask[:16], recv.Node)
 			if err != nil {
 				log.Printf("解密失败：%v\n", err)
 				return nil, err
@@ -201,7 +203,7 @@ func (c *EMMClient) Init(keySet []string) error {
 		oldAddr = slices.Clone(st0)
 		for i := 1; i*c.volume <= c.limit; i++ {
 			newAddr = c.genAddr(mask[:8], i*c.volume)
-			node = append(util.Xor(oldAddr, newAddr), dummy...)
+			node = append(utlils.Xor(oldAddr, newAddr), dummy...)
 			initTokens = append(initTokens, &cemm.AddToken{Addr: slices.Clone(newAddr), Node: slices.Clone(node)})
 			oldAddr = newAddr
 		}

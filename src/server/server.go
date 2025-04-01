@@ -2,7 +2,7 @@ package server
 
 import (
 	"DRW/src/rpc/cemm"
-	"DRW/src/util"
+	"DRW/src/utlils"
 	"context"
 	"errors"
 	"github.com/dgraph-io/badger/v4"
@@ -136,7 +136,7 @@ func (s *EMMServer) Add(ctx context.Context, in *cemm.AddRequest) (*emptypb.Empt
 }
 
 func parseNode(addr, node []byte) (preAddr, data []byte) {
-	preAddr = util.Xor(addr, node[:32])
+	preAddr = utlils.Xor(addr, node[:32])
 	data = node[32:]
 	return
 }

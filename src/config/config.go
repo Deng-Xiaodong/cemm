@@ -7,10 +7,10 @@ type Config struct {
 }
 
 var defaultConfig = Config{
-	ClientCnt: 4,
+	ClientCnt: 6,
 	//Volume:    1 << 10,
 	//Limit:     1 << 24,
-	Volume: 1_000,
+	Volume: 3_000,
 	Limit:  1_000_000_000,
 }
 

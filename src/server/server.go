@@ -4,41 +4,59 @@ import (
 	"DRW/src/rpc/cemm"
 	"DRW/src/utlils"
 	"context"
+	"encoding/binary"
 	"errors"
 	"github.com/dgraph-io/badger/v4"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"log"
-	"maps"
 	"slices"
-	"sync"
 	"sync/atomic"
 )
 
+type AtomicCounter struct {
+	value uint32
+}
+
+func NewAtomicCounter(v uint32) *AtomicCounter {
+	return &AtomicCounter{v}
+}
+func (ac *AtomicCounter) Load() uint32 {
+	return atomic.LoadUint32(&ac.value)
+}
+func (ac *AtomicCounter) FetchAndInc() uint32 {
+	for {
+		old := atomic.LoadUint32(&ac.value)
+		if atomic.CompareAndSwapUint32(&ac.value, old, old+1) {
+			return old
+		}
+	}
+}
+
 type EMMServer struct {
 	cemm.UnimplementedCEMMServer
-	round map[string]*atomic.Int32
-	locks map[string]*sync.Mutex
-	stash map[string]map[string]struct{}
-	edb   *badger.DB
+
+	cnt   *AtomicCounter
+	round map[string]*AtomicCounter
+
+	edb *badger.DB
+}
+
+func NewEMMServer(db *badger.DB) *EMMServer {
+	s := &EMMServer{
+		edb:   db,
+		cnt:   NewAtomicCounter(1),
+		round: make(map[string]*AtomicCounter),
+	}
+	return s
 }
 
 func (s *EMMServer) Init(ctx context.Context, in *cemm.InitRequest) (*emptypb.Empty, error) {
-	//初始化round、stash、locks，后续无锁使用
+
 	for _, tag := range in.Tags {
 		stag := string(tag)
-
 		//round
-		at := &atomic.Int32{}
-		at.Store(1)
-		s.round[stag] = at
-
-		//stash
-		s.stash[stag] = make(map[string]struct{})
-
-		//locks
-		s.locks[stag] = new(sync.Mutex)
-
+		s.round[stag] = NewAtomicCounter(1)
 	}
 	var err error
 	for _, dummy := range in.Dummys {
@@ -52,12 +70,14 @@ func (s *EMMServer) Init(ctx context.Context, in *cemm.InitRequest) (*emptypb.Em
 }
 
 func (s *EMMServer) Get(in *cemm.GetRequest, stream grpc.ServerStreamingServer[cemm.GetReply]) error {
+	//进入线性化点
+	countGet := s.cnt.FetchAndInc()
 
-	stag := string(in.Tag)
-	cur := make(map[string]struct{})
 	var data []byte
 	addr := in.Addr
+	var count uint32
 	for {
+
 		value, err := s.read(addr)
 		if err != nil {
 			log.Printf("EDB read  error: %v", err)
@@ -65,60 +85,38 @@ func (s *EMMServer) Get(in *cemm.GetRequest, stream grpc.ServerStreamingServer[c
 		}
 		if value == nil {
 			break
-		} else {
-			cur[string(addr)] = struct{}{}
 		}
 
-		addr, data = parseNode(addr, value)
+		//检查可见性
+		count, addr, data = parseNode(addr, value)
+
+		if count == 0 || count > countGet {
+			//log.Printf("get miss node with count   %v", count)
+			continue
+		}
+
 		err = stream.Send(&cemm.GetReply{Node: slices.Clone(data)})
 		if err != nil {
 			log.Printf("server send error: %v", err)
 			return err
 		}
 	}
-	mu := s.locks[stag]
-	mu.Lock() //有可能更后面的查询轮先拿到锁，前面轮的结果会被填充后面轮真实值和dummy值
-	diff := s.unionAndGetDiff(stag, cur)
-	mu.Unlock()
-
-	for addr := range maps.Keys(diff) {
-		val, err := s.read([]byte(addr))
-		if err != nil {
-			log.Printf("EDB read  error: %v", err)
-			return err
-		}
-		if val == nil {
-			log.Fatal("EDB read  empty for diff")
-		}
-		err = stream.Send(&cemm.GetReply{Node: slices.Clone(val[32:])})
-		if err != nil {
-			log.Printf("server send error: %v", err)
-			return err
-		}
-	}
-	log.Printf("diff len: %d", len(diff))
 	return nil
 }
 
 func (s *EMMServer) GetOrIncRound(ctx context.Context, in *cemm.RoundRequest) (*cemm.RoundReply, error) {
 	stag := string(in.Tag)
-	rly := &cemm.RoundReply{}
 	t, ok := s.round[stag]
 	if !ok || t == nil {
 		log.Println("EDB get round error: init error")
-		return rly, errors.New("init error")
+		return nil, errors.New("init error")
 	}
-	switch in.Op {
-	case true:
+
+	rly := &cemm.RoundReply{}
+	if in.Op {
 		//查询
-		for {
-			old := t.Load()
-			if t.CompareAndSwap(old, old+1) {
-				rly.Round = old
-				break
-			}
-		}
-	case false:
+		rly.Round = t.FetchAndInc()
+	} else {
 		//添加
 		rly.Round = t.Load()
 	}
@@ -126,31 +124,40 @@ func (s *EMMServer) GetOrIncRound(ctx context.Context, in *cemm.RoundRequest) (*
 }
 
 func (s *EMMServer) Add(ctx context.Context, in *cemm.AddRequest) (*emptypb.Empty, error) {
-	for _, tk := range in.Tokens {
-		if err := s.write(tk.Addr, tk.Node); err != nil {
-			log.Println("EDB write batch error:", err)
-			return &emptypb.Empty{}, err
-		}
+
+	err := s.write(in.Next.Addr, in.Next.Node)
+	if err != nil {
+		log.Println("EDB write next error:", err)
+		return &emptypb.Empty{}, err
 	}
+
+	err = s.write(in.PreNext.Addr, in.PreNext.Node)
+	if err != nil {
+		log.Println("EDB write preNext error:", err)
+		return &emptypb.Empty{}, err
+	}
+
+	fullNode(s.cnt.FetchAndInc(), in.Next.Node)
+	//线性化点
+	//log.Println("EDB add node with count :", binary.BigEndian.Uint32(in.Next.Node[:4]))
+	for s.write(in.Next.Addr, in.Next.Node) != nil {
+	}
+
 	return &emptypb.Empty{}, nil
 }
 
-func parseNode(addr, node []byte) (preAddr, data []byte) {
-	preAddr = utlils.Xor(addr, node[:32])
-	data = node[32:]
+// 功能函数
+func parseNode(addr, node []byte) (count uint32, preAddr, data []byte) {
+	count = binary.BigEndian.Uint32(node[:4])
+	preAddr = utlils.Xor(addr, node[4:36])
+	data = node[36:]
 	return
 }
-
-func NewEMMServer(db *badger.DB) *EMMServer {
-	s := &EMMServer{
-		edb:   db,
-		round: make(map[string]*atomic.Int32),
-		stash: make(map[string]map[string]struct{}),
-		locks: make(map[string]*sync.Mutex),
-	}
-	return s
+func fullNode(count uint32, node []byte) {
+	binary.BigEndian.PutUint32(node[:4], count)
 }
 
+// db相关
 func (s *EMMServer) write(key, value []byte) error {
 	// 2. 写入数据
 	return s.edb.Update(func(txn *badger.Txn) error {
@@ -179,19 +186,4 @@ func (s *EMMServer) read(key []byte) ([]byte, error) {
 		}
 		return err
 	})
-}
-
-func (s *EMMServer) unionAndGetDiff(stag string, cur map[string]struct{}) map[string]struct{} {
-	pre := s.stash[stag]
-	ret := make(map[string]struct{})
-	diff := make(map[string]struct{})
-	maps.Copy(ret, cur)
-	for k, _ := range pre {
-		if _, ok := cur[k]; !ok {
-			ret[k] = struct{}{}
-			diff[k] = struct{}{}
-		}
-	}
-	s.stash[stag] = ret
-	return diff
 }

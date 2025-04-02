@@ -38,7 +38,6 @@ message InitRequest
 
 message GetRequest
 {
-  bytes tag = 1;
   bytes addr =2;
 }
 
@@ -50,7 +49,8 @@ message GetReply
 
 message AddRequest
 {
-  repeated AddToken tokens =1;
+  AddToken next =1;
+  AddToken preNext =2;
 }
 
 message RoundRequest
@@ -61,6 +61,6 @@ message RoundRequest
 
 message RoundReply
 {
-  int32 round =1;
+  uint32 round =1;
 }
 

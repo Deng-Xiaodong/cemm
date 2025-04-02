@@ -32,8 +32,8 @@ func conOp(c int, cf *config.Config) {
 	cli := NewEMMClient(c, cf, cemm.NewCEMMClient(conn))
 
 	if c == 1 {
-		for i := 1; i <= 1000; i++ {
-			err := cli.Add("key1", "value1_"+strconv.Itoa(i+2000))
+		for i := 1; i <= 300; i++ {
+			err := cli.Add("key1", "value1_"+strconv.Itoa(i))
 			if err != nil {
 				log.Println(err)
 				return
@@ -42,8 +42,8 @@ func conOp(c int, cf *config.Config) {
 		}
 
 	} else if c == 2 {
-		for i := 1; i <= 1000; i++ {
-			err := cli.Add("key1", "value1_"+strconv.Itoa(i+3000))
+		for i := 1; i <= 300; i++ {
+			err := cli.Add("key1", "value1_"+strconv.Itoa(i+300))
 			if err != nil {
 				log.Println(err)
 				return
@@ -52,36 +52,12 @@ func conOp(c int, cf *config.Config) {
 		}
 
 	} else {
-		for i := 1; i <= 100; i++ {
+		for i := 1; i <= 10; i++ {
 			//delay := 10 + rand.Intn(20)
 			//time.Sleep(time.Duration(delay) * time.Millisecond)
 			res, _ := cli.Get("key1")
-			//sort.Slice(res, func(i, j int) bool {
-			//	a := strings.Split(res[i], "_")[1]
-			//	b := strings.Split(res[j], "_")[1]
-			//	return compareStringIntsn(a, b)
-			//})
 			log.Printf("cli%d search key1 got :%v\n", c, res)
 		}
 	}
 
-}
-
-func compareStringIntsn(a, b string) bool {
-	// 1. 比较长度
-	if len(a) < len(b) {
-		return false
-	} else if len(a) > len(b) {
-		return true
-	}
-
-	// 2. 长度相同，逐字符比较
-	for i := 0; i < len(a); i++ {
-		if a[i] < b[i] {
-			return false
-		} else if a[i] > b[i] {
-			return true
-		}
-	}
-	return true // 完全相等
 }
